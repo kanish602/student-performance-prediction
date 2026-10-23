@@ -1,7 +1,9 @@
-
 from flask import Flask, render_template_string, request
+import pandas as pd
+import joblib
 
 app = Flask(__name__)
+model = joblib.load("model.pkl")
 
 HTML = """
 <!DOCTYPE html>
@@ -10,22 +12,22 @@ HTML = """
     <title>Student Performance Prediction</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
-            background: #f0f4f8;
+            font-family: Arial;
+            background: #eef2f7;
             text-align: center;
-            padding: 40px;
+            padding: 30px;
         }
-        .card {
+        .container {
             background: white;
+            padding: 30px;
+            border-radius: 15px;
             max-width: 450px;
             margin: auto;
-            padding: 25px;
-            border-radius: 12px;
-            box-shadow: 0 4px 15px #ccd;
+            box-shadow: 0 4px 15px #ccc;
         }
-        input, button {
+        input, select, button {
             width: 90%;
-            padding: 12px;
+            padding: 10px;
             margin: 10px;
             box-sizing: border-box;
         }
@@ -36,25 +38,40 @@ HTML = """
             border-radius: 6px;
             cursor: pointer;
         }
-        .result { color: #166534; font-weight: bold; }
+        h2 { color: #2563eb; }
     </style>
 </head>
 <body>
-<div class="card">
-    <h1>Student Performance Predictor</h1>
-    <p>Enter your academic details</p>
+<div class="container">
+    <h2>Student Performance Prediction</h2>
+    <p>Enter the student's academic details</p>
+
     <form method="POST">
-        <input type="number" name="hours" min="0" max="24"
-               step="0.5" placeholder="Daily study hours" required>
-        <input type="number" name="attendance" min="0" max="100"
-               placeholder="Attendance (%)" required>
-        <input type="number" name="previous" min="0" max="100"
-               placeholder="Previous marks (%)" required>
-        <button type="submit">Predict Performance</button>
+        <label>Study Time (1-4)</label>
+        <select name="studytime" required>
+            <option value="1">1 - Less than 2 hours/week</option>
+            <option value="2">2 - 2 to 5 hours/week</option>
+            <option value="3">3 - 5 to 10 hours/week</option>
+            <option value="4">4 - More than 10 hours/week</option>
+        </select>
+
+        <label>Number of Absences</label>
+        <input type="number" name="absences"
+               min="0" max="100" value="0" required>
+
+        <label>First Period Grade (0-20)</label>
+        <input type="number" name="G1"
+               min="0" max="20" required>
+
+        <label>Second Period Grade (0-20)</label>
+        <input type="number" name="G2"
+               min="0" max="20" required>
+
+        <button type="submit">Predict Final Grade</button>
     </form>
-    {% if result is not none %}
-        <p class="result">Estimated performance: {{ result }}%</p>
-        <p>This is a simple demo estimate, not an ML prediction yet.</p>
+
+    {% if prediction is not none %}
+        <h3>Predicted Final Grade: {{ prediction }} / 20</h3>
     {% endif %}
 </div>
 </body>
@@ -63,21 +80,24 @@ HTML = """
 
 @app.route("/", methods=["GET", "POST"])
 def home():
-    result = None
+    prediction = None
 
     if request.method == "POST":
-        hours = float(request.form["hours"])
-        attendance = float(request.form["attendance"])
-        previous = float(request.form["previous"])
+        studytime = int(request.form["studytime"])
+        absences = int(request.form["absences"])
+        g1 = int(request.form["G1"])
+        g2 = int(request.form["G2"])
 
-        if 0 <= hours <= 24 and 0 <= attendance <= 100 and 0 <= previous <= 100:
-            result = round(
-                0.4 * previous +
-                0.3 * attendance +
-                0.3 * (hours / 24 * 100), 2
-            )
+        student_data = pd.DataFrame(
+            [[studytime, absences, g1, g2]],
+            columns=["studytime", "absences", "G1", "G2"]
+        )
 
-    return render_template_string(HTML, result=result)
+        result = model.predict(student_data)[0]
+        prediction = round(max(0, min(20, result)), 2)
+
+    return render_template_string(HTML, prediction=prediction)
 
 if __name__ == "__main__":
     app.run(debug=True)
+
